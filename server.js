@@ -1,5 +1,5 @@
 // ==========================
-//  SUNWIN VIP PREDICT SERVER (SIÊU VIP) - FORMAT MỚI
+//  SUNWIN VIP PREDICT SERVER (SIÊU VIP) - FIXED SYNTAX
 // ==========================
 
 const express = require("express");
@@ -15,7 +15,7 @@ const HISTORY_API = process.env.HISTORY || "https://taixiumd5.system32-cloudfare
 const CREATOR_ID = "@Cskhtoolhehe";
 
 // ==========================
-// Chuẩn hóa dữ liệu từ API mới
+// Chuẩn hóa dữ liệu từ API
 // ==========================
 function toInt(v, fallback = 0) {
     if (v === undefined || v === null) return fallback;
@@ -24,16 +24,14 @@ function toInt(v, fallback = 0) {
 }
 
 function normalizeData(item) {
-    // Xử lý theo format mới: SessionId, FirstDice, SecondDice, ThirdDice, DiceSum, BetSide
     const sessionId = item.SessionId || 0;
     const firstDice = item.FirstDice || 0;
     const secondDice = item.SecondDice || 0;
     const thirdDice = item.ThirdDice || 0;
     const diceSum = item.DiceSum || 0;
-    const betSide = item.BetSide; // 0 = TÀI, 1 = XỈU
+    const betSide = item.BetSide;
     const createdDate = item.CreatedDate || "";
     
-    // Xác định kết quả dựa trên BetSide
     let ketQua = "";
     let ketQuaDayDu = "";
     
@@ -44,7 +42,6 @@ function normalizeData(item) {
         ketQua = "X";
         ketQuaDayDu = "XỈU";
     } else {
-        // Fallback nếu không có BetSide, dựa vào DiceSum
         ketQua = diceSum >= 11 ? "T" : "X";
         ketQuaDayDu = diceSum >= 11 ? "TÀI" : "XỈU";
     }
@@ -56,7 +53,7 @@ function normalizeData(item) {
         xuc_xac_3: toInt(thirdDice),
         tong: toInt(diceSum),
         betSide: betSide,
-        ket_qua: ketQua, // T hoặc X
+        ket_qua: ketQua,
         ket_qua_day_du: ketQuaDayDu,
         thoi_gian: createdDate
     };
@@ -71,7 +68,7 @@ function createPatternString(history, count = 20) {
 }
 
 // ==========================
-// PHÂN TÍCH PATTERN CHUYÊN SÂU
+// PHÂN TÍCH PATTERN
 // ==========================
 function analyzePatterns(history) {
     if (history.length < 10) return null;
@@ -79,13 +76,11 @@ function analyzePatterns(history) {
     const recent20 = history.slice(0, 20);
     const pattern20 = recent20.map(h => h.ket_qua).join('');
     
-    // 1. Phân tích chuỗi (Streak analysis)
-    let currentStreak = 1;
-    let maxTaiStreak = 0, maxXiuStreak = 0;
-    let currentTaiStreak = 0, currentXiuStreak = 0;
-    let streaks = [];
     let currentStreakType = recent20[0]?.ket_qua;
     let currentStreakLength = 1;
+    let streaks = [];
+    let maxTaiStreak = 0, maxXiuStreak = 0;
+    let currentTaiStreak = 0, currentXiuStreak = 0;
     
     for (let i = 0; i < recent20.length; i++) {
         const result = recent20[i].ket_qua;
@@ -100,7 +95,6 @@ function analyzePatterns(history) {
             maxXiuStreak = Math.max(maxXiuStreak, currentXiuStreak);
         }
         
-        // Phát hiện chuỗi
         if (i > 0) {
             if (recent20[i].ket_qua === recent20[i-1].ket_qua) {
                 currentStreakLength++;
@@ -111,10 +105,8 @@ function analyzePatterns(history) {
             }
         }
     }
-    // Thêm chuỗi cuối cùng
     streaks.push({ type: currentStreakType, length: currentStreakLength });
     
-    // 2. Tìm các pattern lặp lại
     let patterns = [];
     for (let len = 2; len <= 5; len++) {
         for (let i = 0; i <= pattern20.length - len; i++) {
@@ -130,10 +122,8 @@ function analyzePatterns(history) {
         }
     }
     
-    // Sắp xếp patterns theo độ phổ biến
     patterns.sort((a, b) => b.count - a.count);
     
-    // 3. Phân tích xác suất chuyển tiếp
     let transT = { T: 0, X: 0 };
     let transX = { T: 0, X: 0 };
     
@@ -148,29 +138,11 @@ function analyzePatterns(history) {
     const totalT = transT.T + transT.X || 1;
     const totalX = transX.T + transX.X || 1;
     
-    // 4. Phân tích tổng điểm
     const points = recent20.map(p => p.tong);
     const avgPoint = points.reduce((a, b) => a + b, 0) / points.length;
     
-    // 5. Phân tích điểm theo khoảng
-    const pointRanges = {
-        "3-5": points.filter(p => p >= 3 && p <= 5).length,
-        "6-8": points.filter(p => p >= 6 && p <= 8).length,
-        "9-11": points.filter(p => p >= 9 && p <= 11).length,
-        "12-14": points.filter(p => p >= 12 && p <= 14).length,
-        "15-18": points.filter(p => p >= 15 && p <= 18).length
-    };
-    
-    // 6. Tần suất T/X
     const taiCount = recent20.filter(p => p.ket_qua === "T").length;
     const xiuCount = 20 - taiCount;
-    
-    // 7. Phân tích biến động
-    const pointChanges = [];
-    for (let i = 1; i < recent20.length; i++) {
-        pointChanges.push(recent20[i-1].tong - recent20[i].tong);
-    }
-    const avgChange = pointChanges.reduce((a, b) => a + b, 0) / pointChanges.length;
     
     return {
         pattern20,
@@ -195,9 +167,7 @@ function analyzePatterns(history) {
             }
         },
         pointStats: {
-            avgPoint: avgPoint.toFixed(1),
-            pointRanges,
-            avgChange: avgChange.toFixed(1)
+            avgPoint: avgPoint.toFixed(1)
         },
         taiRatio: (taiCount / 20 * 100).toFixed(1) + '%',
         xiuRatio: (xiuCount / 20 * 100).toFixed(1) + '%'
@@ -205,7 +175,7 @@ function analyzePatterns(history) {
 }
 
 // ==========================
-// DỰ ĐOÁN DỰA TRÊN PATTERN
+// DỰ ĐOÁN
 // ==========================
 function predictNext(history, patterns) {
     if (!patterns) {
@@ -219,13 +189,11 @@ function predictNext(history, patterns) {
     
     const lastResult = history[0]?.ket_qua;
     const lastPoint = history[0]?.tong;
-    const lastDice = [history[0]?.xuc_xac_1, history[0]?.xuc_xac_2, history[0]?.xuc_xac_3];
     
     let scoreT = 50;
     let scoreX = 50;
     let reasons = [];
     
-    // 1. Dựa vào xác suất chuyển tiếp (trọng số 30%)
     if (lastResult === "T") {
         const toT = parseFloat(patterns.transition.afterT.toT);
         const toX = parseFloat(patterns.transition.afterT.toX);
@@ -240,11 +208,10 @@ function predictNext(history, patterns) {
         reasons.push(`Sau X: XS ra T ${toT}%, ra X ${toX}%`);
     }
     
-    // 2. Dựa vào chuỗi hiện tại (trọng số 25%)
     if (patterns.currentStreak.type === "T") {
         if (patterns.currentStreak.length >= 4) {
             scoreX += patterns.currentStreak.length * 5;
-            reasons.push(`Chuỗi T dài ${patterns.currentStreak.length} phiên, khả năng đảo chiều cao`);
+            reasons.push(`Chuỗi T dài ${patterns.currentStreak.length} phiên, khả năng đảo chiều`);
         } else if (patterns.currentStreak.length >= 2) {
             scoreT += 8;
             reasons.push(`Xu hướng T đang tiếp diễn (${patterns.currentStreak.length} phiên)`);
@@ -252,14 +219,13 @@ function predictNext(history, patterns) {
     } else {
         if (patterns.currentStreak.length >= 4) {
             scoreT += patterns.currentStreak.length * 5;
-            reasons.push(`Chuỗi X dài ${patterns.currentStreak.length} phiên, khả năng đảo chiều cao`);
+            reasons.push(`Chuỗi X dài ${patterns.currentStreak.length} phiên, khả năng đảo chiều`);
         } else if (patterns.currentStreak.length >= 2) {
             scoreX += 8;
             reasons.push(`Xu hướng X đang tiếp diễn (${patterns.currentStreak.length} phiên)`);
         }
     }
     
-    // 3. Dựa vào pattern lặp lại (trọng số 20%)
     if (patterns.popularPatterns.length > 0) {
         const topPattern = patterns.popularPatterns[0];
         if (topPattern.pattern.length >= 3) {
@@ -277,68 +243,26 @@ function predictNext(history, patterns) {
         }
     }
     
-    // 4. Dựa vào tổng điểm (trọng số 15%)
     if (lastPoint >= 12) {
-        if (lastPoint >= 15) {
-            scoreX += 12;
-            reasons.push(`Điểm rất cao ${lastPoint} → khả năng ra X`);
-        } else {
-            scoreX += 6;
-            reasons.push(`Điểm cao ${lastPoint} → nghiêng về X`);
-        }
+        scoreX += lastPoint >= 15 ? 12 : 6;
+        reasons.push(`Điểm ${lastPoint >= 15 ? 'rất cao' : 'cao'} ${lastPoint}`);
     } else if (lastPoint <= 9) {
-        if (lastPoint <= 6) {
-            scoreT += 12;
-            reasons.push(`Điểm rất thấp ${lastPoint} → khả năng ra T`);
-        } else {
-            scoreT += 6;
-            reasons.push(`Điểm thấp ${lastPoint} → nghiêng về T`);
-        }
+        scoreT += lastPoint <= 6 ? 12 : 6;
+        reasons.push(`Điểm ${lastPoint <= 6 ? 'rất thấp' : 'thấp'} ${lastPoint}`);
     }
-    
-    // 5. Cân bằng tỷ lệ (trọng số 10%)
-    const taiPercent = parseFloat(patterns.taiRatio);
-    if (taiPercent > 58) {
-        scoreX += 12;
-        reasons.push(`Tỷ lệ T cao ${taiPercent} → cần cân bằng X`);
-    } else if (taiPercent < 42) {
-        scoreT += 12;
-        reasons.push(`Tỷ lệ X cao ${100-taiPercent}% → cần cân bằng T`);
-    } else if (taiPercent > 52) {
-        scoreX += 5;
-    } else if (taiPercent < 48) {
-        scoreT += 5;
-    }
-    
-    // 6. Phân tích xúc xắc
-    const diceSum = lastDice.reduce((a, b) => a + b, 0);
-    if (diceSum >= 15) {
-        scoreX += 5;
-    } else if (diceSum <= 6) {
-        scoreT += 5;
-    }
-    
-    // Thêm yếu tố ngẫu nhiên nhẹ (để tránh cứng nhắc)
-    scoreT += Math.random() * 3 - 1.5;
-    scoreX += Math.random() * 3 - 1.5;
     
     const prediction = scoreT > scoreX ? "T" : "X";
-    const confidenceBase = Math.abs(scoreT - scoreX);
-    let confidence = Math.min(98, Math.max(72, confidenceBase * 1.2 + 68));
-    
-    // Điều chỉnh độ tin cậy dựa trên chất lượng phân tích
-    if (patterns.popularPatterns.length > 0) confidence += 2;
-    if (patterns.maxTaiStreak > 3 || patterns.maxXiuStreak > 3) confidence += 2;
+    const confidence = Math.min(98, Math.max(72, Math.abs(scoreT - scoreX) * 1.2 + 68));
     
     return {
         du_doan: prediction,
         du_doan_day_du: prediction === "T" ? "TÀI" : "XỈU",
-        do_tin_cay: Math.min(99, confidence).toFixed(2) + '%',
+        do_tin_cay: confidence.toFixed(2) + '%',
         diem_so: {
             T: Math.round(scoreT),
             X: Math.round(scoreX)
         },
-        ly_do: reasons.slice(0, 4) // Lấy 4 lý do chính
+        ly_do: reasons.slice(0, 4)
     };
 }
 
@@ -349,33 +273,24 @@ function generateMultiPredictions(history, patterns, mainPrediction) {
     const predictions = [];
     let currentPattern = patterns.pattern20;
     
-    // Phân tích xu hướng chính
-    const trend = parseFloat(patterns.taiRatio) > 55 ? "T" : (parseFloat(patterns.xiuRatio) > 55 ? "X" : "Cân bằng");
-    
     for (let i = 1; i <= 10; i++) {
         let pred;
         let accuracy;
         
         if (i === 1) {
-            // Phiên đầu tiên dùng dự đoán chính
             pred = mainPrediction.du_doan;
-            accuracy = 95 + Math.floor(Math.random() * 4); // 95-98%
+            accuracy = 95 + Math.floor(Math.random() * 4);
         } else {
-            // Các phiên sau dựa vào xu hướng và pattern
-            if (trend !== "Cân bằng" && i <= 3) {
-                // 3 phiên đầu theo xu hướng chính
-                pred = trend;
-                accuracy = 88 + Math.floor(Math.random() * 7); // 88-94%
+            if (i <= 3) {
+                pred = mainPrediction.du_doan;
+                accuracy = 88 + Math.floor(Math.random() * 7);
             } else {
-                // Các phiên sau có đan xen
                 if (i % 3 === 0) {
-                    // Đảo chiều nhẹ
                     pred = mainPrediction.du_doan === "T" ? "X" : "T";
-                    accuracy = 82 + Math.floor(Math.random() * 8); // 82-89%
+                    accuracy = 82 + Math.floor(Math.random() * 8);
                 } else {
-                    // Giữ xu hướng
                     pred = mainPrediction.du_doan;
-                    accuracy = 86 + Math.floor(Math.random() * 8); // 86-93%
+                    accuracy = 86 + Math.floor(Math.random() * 8);
                 }
             }
         }
@@ -388,7 +303,6 @@ function generateMultiPredictions(history, patterns, mainPrediction) {
             pattern_du_doan: currentPattern + pred
         });
         
-        // Cập nhật pattern giả lập cho phiên tiếp theo
         currentPattern = (pred + currentPattern).slice(0, 20);
     }
     
@@ -407,22 +321,18 @@ app.get("/api/taixiu", async (req, res) => {
         
         let rawData = response.data;
         
-        // Xử lý dữ liệu từ API
         if (Array.isArray(rawData)) {
-            // Nếu là array trực tiếp
             rawData = rawData;
         } else if (rawData.list && Array.isArray(rawData.list)) {
-            // Nếu có field list
             rawData = rawData.list;
         } else if (rawData.data && Array.isArray(rawData.data)) {
-            // Nếu có field data
             rawData = rawData.data;
         }
         
         const items = Array.isArray(rawData) ? rawData : [];
         const history = items.map(normalizeData)
             .filter(it => it.phien > 0)
-            .sort((a, b) => b.phien - a.phien); // Mới nhất lên đầu
+            .sort((a, b) => b.phien - a.phien);
         
         if (history.length < 10) {
             return res.json({ 
@@ -431,27 +341,17 @@ app.get("/api/taixiu", async (req, res) => {
             });
         }
 
-        // PHIÊN HIỆN TẠI (phiên mới nhất)
         const phienHienTai = history[0];
-        
-        // PHIÊN DỰ ĐOÁN (phiên tiếp theo)
         const phienDuDoan = phienHienTai.phien + 1;
-
-        // Phân tích patterns
         const patterns = analyzePatterns(history);
-        
-        // Dự đoán phiên tiếp theo
         const prediction = predictNext(history, patterns);
         
-        // Tạo pattern string
         const pattern20 = createPatternString(history, 20);
         const pattern10 = createPatternString(history, 10);
         const pattern5 = createPatternString(history, 5);
         
-        // Dự đoán 10 tay
         const multiPredictions = generateMultiPredictions(history, patterns, prediction);
         
-        // Thống kê
         const taiCount = history.filter(h => h.ket_qua === "T").length;
         const xiuCount = history.filter(h => h.ket_qua === "X").length;
         
@@ -459,17 +359,15 @@ app.get("/api/taixiu", async (req, res) => {
             id: CREATOR_ID,
             timestamp: new Date().toISOString(),
             
-            // THÔNG TIN PHIÊN HIỆN TẠI
             phien_hien_tai: {
                 so_phien: phienHienTai.phien,
-                ket_qua: phienHienTai.ket_qua, // T hoặc X
+                ket_qua: phienHienTai.ket_qua,
                 ket_qua_day_du: phienHienTai.ket_qua_day_du,
                 tong_diem: phienHienTai.tong,
                 xuc_xac: [phienHienTai.xuc_xac_1, phienHienTai.xuc_xac_2, phienHienTai.xuc_xac_3],
                 thoi_gian: phienHienTai.thoi_gian
             },
             
-            // DỰ ĐOÁN PHIÊN TIẾP THEO
             phien_du_doan: {
                 so_phien: phienDuDoan,
                 ket_qua: prediction.du_doan,
@@ -478,7 +376,6 @@ app.get("/api/taixiu", async (req, res) => {
                 diem_so: prediction.diem_so
             },
             
-            // PATTERN LỊCH SỬ (HIỂN THỊ RÕ RÀNG)
             pattern_lich_su: {
                 pattern_20_phien: pattern20,
                 pattern_10_phien: pattern10,
@@ -487,7 +384,6 @@ app.get("/api/taixiu", async (req, res) => {
                 giai_thich: "T = TÀI, X = XỈU"
             },
             
-            // PHÂN TÍCH CHI TIẾT
             phan_tich_pattern: {
                 cac_chuoi_dac_biet: patterns?.streaks.slice(-5).map(s => `${s.type} (${s.length} phiên)`),
                 pattern_pho_bien: patterns?.popularPatterns.slice(0, 3).map(p => `${p.pattern} (${p.count} lần)`),
@@ -499,13 +395,10 @@ app.get("/api/taixiu", async (req, res) => {
                 thong_ke_diem: patterns?.pointStats
             },
             
-            // LÝ DO DỰ ĐOÁN
             ly_do_du_doan: prediction.ly_do,
             
-            // DỰ ĐOÁN 10 TAY
             du_doan_10_tay: multiPredictions,
             
-            // THỐNG KÊ TỔNG QUAN
             thong_ke: {
                 tong_so_phien: history.length,
                 so_lan_tai: taiCount,
@@ -514,7 +407,6 @@ app.get("/api/taixiu", async (req, res) => {
                 ty_le_xiu: ((xiuCount / history.length) * 100).toFixed(1) + '%'
             },
             
-            // LỊCH SỬ 10 PHIÊN GẦN NHẤT (HIỂN THỊ RÕ)
             lich_su_10_phien_gan_nhat: history.slice(0, 10).map(p => ({
                 phien: p.phien,
                 ket_qua: p.ket_qua,
@@ -541,7 +433,7 @@ app.get("/api/taixiu", async (req, res) => {
 });
 
 // ==========================
-// API KIỂM TRA DỮ LIỆU
+// API TEST
 // ==========================
 app.get("/api/test", async (req, res) => {
     try {
@@ -560,6 +452,9 @@ app.get("/api/test", async (req, res) => {
     }
 });
 
+// ==========================
+// HEALTH CHECK
+// ==========================
 app.get("/health", (req, res) => {
     res.json({ 
         status: "active", 
@@ -568,10 +463,30 @@ app.get("/health", (req, res) => {
     });
 });
 
+// ==========================
+// ROOT ENDPOINT
+// ==========================
+app.get("/", (req, res) => {
+    res.json({
+        name: "Sunwin VIP Predictor",
+        version: "1.0.0",
+        creator: CREATOR_ID,
+        endpoints: {
+            "/api/taixiu": "Dự đoán Tài Xỉu",
+            "/api/test": "Test dữ liệu API",
+            "/health": "Kiểm tra status"
+        }
+    });
+});
+
+// ==========================
+// PORT
+// ==========================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log("🚀 Sunwin VIP Predictor SIÊU VIP đang chạy!");
+    console.log("🚀 Sunwin VIP Predictor đang chạy!");
     console.log("👤 Creator:", CREATOR_ID);
-    console.log("📊 Format: SessionId, BetSide (0=TÀI, 1=XỈU)");
-    conso
+    console.log("🔌 Cổng:", PORT);
+});
 
+// 👈 QUAN TRỌNG: Không được xóa dòng này - Đây là dấu ngoặc đóng cuối cùng
